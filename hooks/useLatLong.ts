@@ -15,7 +15,18 @@ export function useLatLong() {
     const fetchDeviceLatLong = async () => {
         setLoadingLatLong(true)
 
-        // TODO: Fetch device location using Location.getLastKnownPositionAsync and store using setLatLong
+        const { status } = await Location.requestForegroundPermissionsAsync()
+        if (status !== 'granted') {
+            setLatLongError('Permission to access location was denied')
+        }
+
+        const location = await Location.getLastKnownPositionAsync({})
+
+        if (!location) {
+            setLatLongError('Location not found')
+        } else {
+            setLatLong({ latitude: location.coords.latitude, longitude: location.coords.longitude })
+        }
 
         setLoadingLatLong(false)
     }
@@ -24,8 +35,33 @@ export function useLatLong() {
         setLoadingLatLong(true)
 
         try {
-            // TODO: Lookup co-ordinates based on searchText using https://developers.google.com/maps/documentation/geocoding/requests-geocoding
-            // store using setLatLong
+            if (!process.env.EXPO_PUBLIC_GOOGLE_API_KEY) {
+                throw new Error('API key is not specified')
+            }
+
+            const response = await fetch('https://maps.googleapis.com/maps/api/geocode/json?' + new URLSearchParams({
+                key: process.env.EXPO_PUBLIC_GOOGLE_API_KEY,
+                address: searchText
+            }))
+
+            if (!response.ok) {
+                throw new Error('Invalid response from Geocoding API')
+            }
+
+            const result = await response.json()
+
+            if (!result) {
+                throw new Error('Error while parsing Geocoding API response')
+            }
+
+            if (!result.results.length) {
+                throw new Error(`No results found for ${searchText}`)
+            }
+
+            setLatLong({
+                latitude: result.results[0].geometry.location.lat,
+                longitude: result.results[0].geometry.location.lng
+            })
         } catch (error: unknown) {
             setLatLongError(`${error}`)
         } finally {
